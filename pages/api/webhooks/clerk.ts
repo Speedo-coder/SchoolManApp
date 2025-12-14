@@ -44,6 +44,11 @@ import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
 /**
+ * Import Clerk's backend API for setting custom claims
+ */
+import { clerkClient } from "@clerk/nextjs/server";
+
+/**
  * POST Handler for Webhook Requests
  *
  * Next.js Page Router API syntax:
@@ -130,6 +135,24 @@ export async function POST(req: Request) {
       // Create the user record in our database
       // Initially set role to "student" (admin can change this later)
       // Admin should update the role to "teacher", "admin", "parent" as needed
+      const newUser = await prisma.user.create({
+        data: {
+          id, // Use Clerk's user ID as our primary key
+          email, // Store their email
+          role: "student", // Default role - admin assigns correct role
+        },
+      });
+
+      // Also set the role as a custom claim in Clerk
+      // This allows middleware to read the role without hitting the database
+      const clerkClientInstance = await clerkClient();
+      await clerkClientInstance.users.updateUserMetadata(id, {
+        publicMetadata: {
+          role: newUser.role,
+        },
+      });
+
+      console.log(`User created in database: ${email} with role: student`);
     }
 
     // =====================================================================
@@ -143,6 +166,13 @@ export async function POST(req: Request) {
       const email = email_addresses?.[0]?.email_address;
 
       // Only update if email changed
+      if (email) {
+        await prisma.user.update({
+          where: { id }, // Find by Clerk user ID
+          data: { email }, // Update email field
+        });
+        console.log(`User updated in database: ${email}`);
+      }
     }
 
     // =====================================================================
@@ -152,6 +182,10 @@ export async function POST(req: Request) {
     // What: Remove the User record from our database
     // Why: Clean up - user no longer has access to the app
     if (eventType === "user.deleted") {
+      await prisma.user.delete({
+        where: { id }, // Find by Clerk user ID
+      });
+      console.log(`User deleted from database: ${id}`);
     }
 
     // Success! Clerk will mark this webhook as delivered

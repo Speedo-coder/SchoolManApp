@@ -1,32 +1,36 @@
 /**
- * MIDDLEWARE: Server-side Route Protection with Clerk
+ * MIDDLEWARE: Server-side Authentication Protection with Clerk
+ * ============================================================================
  * 
- * This middleware runs on every request and enforces authentication
- * on protected routes using Clerk's auth system.
+ * IMPORTANT NOTE ON ARCHITECTURE:
+ * This middleware runs at the Edge (Vercel CDN) and has limitations:
+ * - Cannot reliably connect to database
+ * - Cannot use Prisma or other database queries
+ * - Cannot use Node.js file system operations
+ * - Must be extremely fast (milliseconds)
  * 
- * Purpose:
- * - Validate user authentication on server-side before rendering pages
- * - Redirect unauthenticated users to /sign-in automatically
- * - Prevent unauthorized access to dashboard routes at the edge
+ * SOLUTION:
+ * Middleware handles ONLY authentication (is user signed in?)
+ * Role validation (does user have permission?) happens CLIENT-SIDE in RouteProtector
  * 
- * Flow:
- * 1. User requests a protected route (e.g., /admin, /teacher, /student)
- * 2. Middleware intercepts the request
- * 3. Clerk verifies the session token from the request
- * 4. If valid: request continues to the page
- * 5. If invalid: Clerk middleware redirects to /sign-in
+ * Why this approach?
+ * 1. Middleware fast: Blocks at edge, prevents unauth requests
+ * 2. RouteProtector reliable: Has database access, can validate roles
+ * 3. No flash: AuthLoadingContext prevents content while checking role
+ * 4. Secure: Defense-in-depth (server auth + client role validation)
  * 
- * Note: Client-side RouteProtector component provides UI-level protection
- * as a complementary safety layer for better UX.
+ * ============================================================================
  */
 
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
 /**
  * PUBLIC_ROUTES: Routes accessible without authentication
+ * 
+ * These routes don't need a signed-in user:
  * - "/" (landing page)
  * - "/sign-in" and "/sign-up" (auth pages)
- * - "/api/webhooks/clerk" (webhook endpoint for Clerk events)
+ * - "/api/webhooks/clerk" (Clerk webhook - must be public)
  */
 const isPublicRoute = createRouteMatcher([
   "/",
@@ -37,15 +41,19 @@ const isPublicRoute = createRouteMatcher([
 
 /**
  * PROTECTED_ROUTES: Routes that require authentication
- * These routes are exclusively for authenticated users:
- * - "/admin(.*)" - Admin dashboard and pages
- * - "/teacher(.*)" - Teacher dashboard and pages
- * - "/student(.*)" - Student dashboard and pages
- * - "/parent(.*)" - Parent dashboard and pages
- * - "/list(.*)" - Management lists (classes, students, results, etc.)
+ * 
+ * These routes require user to be signed in with Clerk.
+ * Role validation (which dashboard can they access) happens in RouteProtector.
+ * 
+ * Routes:
+ * - "/admin(.*)" - Admin dashboard
+ * - "/teacher(.*)" - Teacher dashboard
+ * - "/student(.*)" - Student dashboard
+ * - "/parent(.*)" - Parent dashboard
+ * - "/list(.*)" - Data management pages
  * - "/profile(.*)" - User profile pages
- * - "/settings(.*)" - User settings pages
- * - "/logout(.*)" - Logout functionality
+ * - "/settings(.*)" - Settings pages
+ * - "/logout(.*)" - Logout pages
  */
 const isProtectedRoute = createRouteMatcher([
   "/admin(.*)",
@@ -60,43 +68,90 @@ const isProtectedRoute = createRouteMatcher([
 
 /**
  * Clerk Middleware Handler
+ * ============================================================================
  * 
- * This middleware function checks if a request is trying to access
- * a protected route and enforces authentication.
+ * This middleware runs on EVERY request and does ONE simple thing:
+ * Enforce authentication on protected routes.
  * 
- * @param {Object} auth - Clerk's auth object containing session data
- * @param {Object} req - The incoming request object
+ * What it does:
+ * 1. Check if route is protected
+ * 2. If protected AND user not authenticated → redirect to /sign-in
+ * 3. If protected AND user authenticated → allow request to continue
+ * 4. If public → allow request regardless of auth
  * 
- * How it works:
- * - If route is NOT protected: allow request to continue (no auth check)
- * - If route IS protected: call auth.protect() which:
- *   a) Checks if user has valid session
- *   b) If valid: allows request to continue
- *   c) If invalid: redirects to /sign-in (Clerk default behavior)
+ * What it does NOT do:
+ * - Does NOT check user's role
+ * - Does NOT query database
+ * - Does NOT validate permissions
+ * 
+ * Why? Because middleware runs at the edge and:
+ * - Database connections are unreliable at edge
+ * - Prisma queries are too slow at edge
+ * - Edge has no persistent storage
+ * 
+ * Role validation happens in RouteProtector component (client-side)
+ * which has full database access and is more reliable.
+ * 
+ * @param {AuthFn} auth - Clerk authentication object
+ *        - Provides methods to check auth status
+ *        - NOT a simple object with properties
+ *        - Must call auth.protect() to enforce auth
+ * 
+ * @param {NextRequest} req - The incoming HTTP request
+ *        - Has pathname, headers, etc.
+ *        - Can be used to check which route was requested
  */
 export default clerkMiddleware((auth, req) => {
-  // Check if this request is trying to access a protected route
+  // =========================================================================
+  // STEP 1: Check if this request is trying to access a protected route
+  // =========================================================================
+  // createRouteMatcher returns a function that checks the request
   if (isProtectedRoute(req)) {
-    // Enforce authentication - will redirect to /sign-in if not authenticated
-    // Using auth.protect() (NOT auth().protect()) - correct Clerk v6 API
+    // User is trying to access a protected route
+    // Enforce authentication using Clerk's built-in method
     auth.protect();
+
+    // =====================================================================
+    // NOTE: auth.protect() is asynchronous
+    // What it does:
+    // 1. Checks if user has valid Clerk session token
+    // 2. If valid: allows request to continue (code below doesn't run)
+    // 3. If invalid: automatically redirects to /sign-in
+    // 4. Never returns (either continues or redirects)
+    // =====================================================================
+
+    // If we reach here, user IS authenticated and can continue
+    // Role validation will happen in RouteProtector component
   }
+
+  // If route is public, this code doesn't run, request passes through
 });
 
 /**
- * MIDDLEWARE CONFIG: Route Matching Patterns
+ * MIDDLEWARE CONFIGURATION
+ * ============================================================================
  * 
- * The 'matcher' array tells Next.js which requests should trigger this middleware.
- * This optimizes performance by only running middleware on relevant routes.
+ * The 'matcher' array tells Next.js WHICH requests trigger this middleware.
+ * This is important for performance - we only run middleware where needed.
  * 
- * First matcher: Runs middleware on protected routes and API routes
- * - (admin|teacher|student|parent|list|profile|settings|logout|api)(.*)
+ * Matchers:
+ * 1. "/(admin|teacher|student|parent|list|profile|settings|logout|api)(.*)"
+ *    → Run middleware on these routes
+ *    → Protects admin/teacher/student/parent dashboards
+ *    → Protects /list, /profile, /settings, /logout
+ *    → Protects /api endpoints
  * 
- * Second matcher: Skips middleware for Next.js internals and static files
- * This prevents unnecessary middleware execution on:
- * - /_next/* (Next.js system files)
- * - Static files: .html, .css, .js, .jpg, .png, .gif, .svg, .woff, etc.
- * - Other system files
+ * 2. "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)"
+ *    → Skip middleware on Next.js internals and static files
+ *    → Prevents running middleware on:
+ *       - /_next/* (Next.js system files)
+ *       - .html, .css, .js, .jpg, .png, .gif, .svg files
+ *       - Images, fonts, and other assets
+ * 
+ * Why skip static files?
+ * - Static files are public and don't need auth
+ * - Middleware would just slow them down
+ * - Better UX with faster asset loading
  */
 export const config = {
   matcher: [

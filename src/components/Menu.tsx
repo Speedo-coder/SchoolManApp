@@ -26,6 +26,7 @@ import {
   FaCog,
   FaSignOutAlt,
 } from "react-icons/fa";
+import LogoutLoader from "./LogoutLoader";
 
 /* MENU ITEM STRUCTURE */
 type MenuItem = {
@@ -174,6 +175,12 @@ const Menu: React.FC<MenuProps> = ({
   const { signOut } = useClerk();
   const [currentRole, setCurrentRole] = useState<string | null>(null);
   const [pendingClose, setPendingClose] = useState<string | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  // Use the authenticated role when available, otherwise fall back to the
+  // static demo role from `lib/data`. This ensures the menu displays items
+  // relevant to the current user when signed in.
+  const effectiveRole = currentRole ?? demoRole;
 
   useEffect(() => {
     // Read the persisted demo role (if any) so the menu can decide where
@@ -211,11 +218,11 @@ const Menu: React.FC<MenuProps> = ({
 
           {/* ICON IMAGE and  STRUCTURE CONTAINER */}
           {i.items.map((item) => {
-            // check the static demo role from data.ts first, if it matches
-            // the visible list. I then further allow the persisted current
-            // auth role (from localStorage via getRole()) to affect Home and
-            // Logout behavior at click-time.
-            if (item.visible.includes(demoRole)) {
+            // Only render items visible to the effective role (authenticated
+            // role if present, otherwise the demo role). This fixes a bug
+            // where the menu could be empty when `demoRole` did not match
+            // the actual signed-in user's role.
+            if (item.visible.includes(effectiveRole)) {
               // Special-case "Home": when the user is signed in I don't
               // want to navigate back to the public home page ("/"), which
               // in the prior implementation could act like a sign-out or
@@ -267,8 +274,17 @@ const Menu: React.FC<MenuProps> = ({
                   try {
                     // Clear demo auth state
                     clearAuth();
-                    // Sign out from Clerk
-                    await signOut({ redirectUrl: "/" });
+
+                    // Show the logout loader for 2s, then sign out
+                    setIsLoggingOut(true);
+                    setTimeout(async () => {
+                      try {
+                        await signOut({ redirectUrl: "/" });
+                      } catch (error) {
+                        console.error("Logout error:", error);
+                        router.push("/");
+                      }
+                    }, 2000);
                   } catch (error) {
                     console.error("Logout error:", error);
                     // Redirect anyway
@@ -277,20 +293,34 @@ const Menu: React.FC<MenuProps> = ({
                 };
 
                 return (
-                  <a
-                    key={item.label}
-                    onClick={handleLogout}
-                    className={`flex items-center ${
-                      showLabels
-                        ? "justify-start"
-                        : "justify-center lg:justify-start"
-                    } gap-4 text-gray-500 py-2 md:px-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer`}
-                  >
-                    {item.icon ? <item.icon size={20} /> : null}
-                    <span className={showLabels ? "block" : "hidden lg:block"}>
-                      {item.label}
-                    </span>
-                  </a>
+                  <>
+                    <a
+                      key={item.label}
+                      onClick={handleLogout}
+                      className={`flex items-center ${
+                        showLabels
+                          ? "justify-start"
+                          : "justify-center lg:justify-start"
+                      } gap-4 text-gray-500 py-2 md:px-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer`}
+                    >
+                      {item.icon ? <item.icon size={20} /> : null}
+                      <span className={showLabels ? "block" : "hidden lg:block"}>
+                        {item.label}
+                      </span>
+                    </a>
+
+                    {/* Logout loader overlay shown during menu logout */}
+                    {isLoggingOut && (
+                      <div className="fixed inset-0 z-[2000]">
+                        <div className="absolute inset-0 bg-white/60 dark:bg-black/60" />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="mx-auto">
+                            <LogoutLoader isVisible={true} statusText="Signing you out" countdownSeconds={2} showCountdown={false} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 );
               }
 

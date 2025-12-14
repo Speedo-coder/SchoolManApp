@@ -1,3 +1,4 @@
+
 /**
  * ROOT LAYOUT: Application Root Component
  *
@@ -27,6 +28,8 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ClerkProvider } from "@clerk/nextjs";
 import RouteProtector from "@/components/RouteProtector";
+import { AuthLoadingProvider } from "@/lib/AuthLoadingContext";
+import AuthLoadingOverlay from "@/components/AuthLoadingOverlay";
 
 /**
  * Load Inter font from Google Fonts
@@ -36,7 +39,6 @@ const inter = Inter({ subsets: ["latin"] });
 
 /**
  * SEO Metadata for the application
- * These tags appear in the HTML head and affect search results
  */
 export const metadata: Metadata = {
   title: "Pato Smart Schooling Management Web-Application",
@@ -124,6 +126,8 @@ export default function RootLayout({
         </head>
         {/* Body with Inter font applied globally */}
         <body className={inter.className}>
+          <AuthLoadingProvider>
+            <AuthLoadingOverlay />
           {/* 
             RouteProtector: Client-side route protection
             
@@ -138,22 +142,23 @@ export default function RootLayout({
             - Middleware redirects to /sign-in
             - No error page flashes
           */}
-          <RouteProtector>
-            {/* Page content injected here by Next.js routing */}
-            {children}
+            <RouteProtector>
+              {/* Page content injected here by Next.js routing */}
+              {children}
 
-            {/**
-             * Vercel Analytics Integration
-             * Tracks user interactions and performance metrics
-             */}
-            <Analytics />
+              {/**
+               * Vercel Analytics Integration
+               * Tracks user interactions and performance metrics
+               */}
+              <Analytics />
 
-            {/**
-             * Vercel Speed Insights
-             * Monitors Core Web Vitals and performance
-             */}
-            <SpeedInsights />
-          </RouteProtector>
+              {/**
+               * Vercel Speed Insights
+               * Monitors Core Web Vitals and performance
+               */}
+              <SpeedInsights />
+            </RouteProtector>
+          </AuthLoadingProvider>
         </body>
       </html>
     </ClerkProvider>

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { getRole } from "@/lib/auth";
 import { FaBell, FaEnvelope, FaSearch, FaCog } from "react-icons/fa";
 import ThemeToggle from "./ThemeToggle";
+import SignOutInterceptor from "./SignOutInterceptor";
 import { UserButton } from "@clerk/nextjs";
 
 interface NavbarProps {
@@ -45,6 +46,7 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
 
   return (
     <>
+      <SignOutInterceptor />
       <div className="flex items-center justify-between p-4">
         {/* Menu button for small screens */}
         <button
