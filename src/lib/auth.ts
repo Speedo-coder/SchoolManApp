@@ -33,10 +33,27 @@ export function getAuth(): DemoAuth {
 export function setAuth(role: string) {
   const payload: DemoAuth = { role, authenticated: true };
   try {
+    // Persist demo auth state
     window.localStorage.setItem(AUTH_KEY, JSON.stringify(payload));
-    // notify same-tab listeners about the change (storage events don't fire
-    // in the same tab that performed the write)
+
+    // Signal that auth changed so UI can react (Navbar, Menu, etc.)
     window.dispatchEvent(new Event("sma_auth_change"));
+
+    // Also set a short-lived flag that tells the UI to show a sign-in
+    // page loader the next time a protected layout renders. This allows
+    // us to show a brief professional "Signing in" animation for a
+    // smoother perceived transition after sign-in.
+    try {
+      window.localStorage.setItem("sma_show_signin_loader", "1");
+      // Notify in-window listeners so the SignInLoader shows immediately
+      try {
+        window.dispatchEvent(new Event("sma_show_signin"));
+      } catch (e) {
+        // ignore
+      }
+    } catch (err) {
+      // ignore failures setting the flag
+    }
   } catch (err) {
     // noop - localStorage failures should not crash the UI in the demo
   }

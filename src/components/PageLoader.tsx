@@ -15,7 +15,7 @@
 
 export default function PageLoader() {
   return (
-    <div className="absolute inset-0 z-40 flex items-center justify-center bg-gradient-to-br from-white/80 via-gray-50/80 to-white/80 dark:from-gray-900/80 dark:via-gray-800/80 dark:to-gray-900/80 backdrop-blur-md rounded-lg">
+    <div className="absolute inset-0 z-40 flex items-center justify-center bg-gradient-to-br from-white/90 via-gray-50/90 to-white/90 dark:from-gray-900/90 dark:via-gray-800/90 dark:to-gray-900/90 backdrop-blur-md">
       {/* OUTER CONTAINER */}
       <div className="flex flex-col items-center justify-center gap-6">
         {/* ANIMATED LOADER */}

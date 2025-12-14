@@ -30,6 +30,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import RouteProtector from "@/components/RouteProtector";
 import { AuthLoadingProvider } from "@/lib/AuthLoadingContext";
 import AuthLoadingOverlay from "@/components/AuthLoadingOverlay";
+import SignInLoader from "@/components/SignInLoader";
 
 /**
  * Load Inter font from Google Fonts
@@ -73,7 +74,7 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       {/* HTML root element with English language */}
-      <html lang="en" suppressHydrationWarning>
+      <html lang="en" suppressHydrationWarning className="h-full">
         {/* HEAD: Include critical theme script before any content renders */}
         <head>
           {/* 
@@ -125,9 +126,10 @@ export default function RootLayout({
           />
         </head>
         {/* Body with Inter font applied globally */}
-        <body className={inter.className}>
+        <body className={`${inter.className} h-full`}>
           <AuthLoadingProvider>
             <AuthLoadingOverlay />
+            <SignInLoader />
           {/* 
             RouteProtector: Client-side route protection
             

@@ -238,7 +238,9 @@ const Menu: React.FC<MenuProps> = ({
                   if (targetPath !== lastPath) {
                     onShowLoader?.();
                   }
-                  // Defer closing until navigation finishes
+                  // Close drawer immediately on mobile/tablet
+                  onItemClick?.();
+                  // Also set pending close for consistency
                   setPendingClose(targetPath);
                   if (currentRole) {
                     // route to the authenticated user's dashboard
@@ -335,6 +337,9 @@ const Menu: React.FC<MenuProps> = ({
                     if (item.href !== lastPath) {
                       onShowLoader?.();
                     }
+                    // Close drawer immediately on mobile/tablet
+                    onItemClick?.();
+                    // Also set pending close for desktop sidebar consistency
                     setPendingClose(item.href);
                   }}
                   className={`flex items-center ${

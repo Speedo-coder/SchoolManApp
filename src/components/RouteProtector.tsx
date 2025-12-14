@@ -18,7 +18,7 @@
  */
 
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useAuthLoading } from "@/lib/AuthLoadingContext";
@@ -174,6 +174,35 @@ export default function RouteProtector({
     setUserRole(role);
     setIsRoleLoaded(true);
   }, [isLoaded, userId, user]);
+
+  // =========================================================================
+  // EFFECT 1b: Show one-time sign-in loader when a Clerk login occurs
+  // =========================================================================
+  // When Clerk reports a new userId (falsy -> truthy) we set a short-lived
+  // localStorage flag so the SignInLoader component can display a nice
+  // "Signing you in" animation for a couple of seconds. We only set the
+  // flag when the userId transitions from falsy -> truthy (i.e. a new login).
+  const prevUserIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const prev = prevUserIdRef.current;
+      // Only set the flag when userId changed from falsy -> truthy
+      if (!prev && userId) {
+        window.localStorage.setItem("sma_show_signin_loader", "1");
+        // Dispatch a custom event so the SignInLoader (same window) notices immediately
+        try {
+          window.dispatchEvent(new Event("sma_show_signin"));
+        } catch (e) {
+          // ignore
+        }
+      }
+    } catch (err) {
+      // ignore localStorage errors
+    } finally {
+      prevUserIdRef.current = userId ?? null;
+    }
+  }, [userId]);
 
   // =========================================================================
   // EFFECT 2: MAIN LOGIC - Check auth and role, update loading state

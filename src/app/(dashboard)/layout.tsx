@@ -197,43 +197,11 @@ export default function DashboardLayout({
         When isAuthLoading=true, this doesn't render (see above)
       */}
       <DashboardShell onShowLoader={handleShowLoader} lastPath={lastPath}>
-        {/* 
-          CONTENT WRAPPER: Relative positioned container
-          
-          Purpose:
-          - Creates positioning context for PageLoader
-          - PageLoader uses absolute positioning to cover content
-          - flex-1 makes it take remaining space
-        */}
-        <div className="relative flex-1">
-          {/* 
-            PAGE LOADER: Navigation transition indicator
-            
-            Shows when:
-            - isLoading=true (user clicked menu item)
-            - isAuthLoading=true (but handled above at root level)
-            
-            Hides when:
-            - isLoading=false (new page has rendered)
-            
-            Note:
-            The PageLoader component uses absolute positioning,
-            so it overlays on top of the content area.
-          */}
-          {isLoading && <PageLoader />}
-          
-          {/* 
-            PAGE CONTENT: The actual page being viewed
-            
-            Shows when:
-            - isLoading=false (not transitioning pages)
-            - isAuthLoading=false (auth checks complete)
-            
-            This is the children prop passed to this layout
-            (the actual page content from /admin, /teacher, etc.)
-          */}
-          {!isLoading && children}
-        </div>
+        {/* Show page loader overlay during navigation */}
+        {isLoading && <PageLoader />}
+        
+        {/* Show page content when not loading */}
+        {!isLoading && children}
       </DashboardShell>
 
       {/* ANALYTICS: Vercel Analytics integration for performance tracking */}
